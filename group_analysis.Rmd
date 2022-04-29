@@ -1,0 +1,241 @@
+---
+title: "Group Analysis"
+output: html_document
+---
+
+```{r, echo=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(stringr)
+library(modelr)
+library(purrr)
+library(reshape2)
+library(gtools)
+library(readxl)
+library(openxlsx)
+library(showtext)
+```
+
+```{r}
+font.add("LatinModern", "lmroman10-regular.otf")
+showtext.auto()
+```
+
+
+```{r}
+t1 <- read.xlsx("~/Desktop/stanford/senior year/thesis/analysis/Dataset2.xlsx", 2, sep.names = "_")
+t2 <- read.xlsx("~/Desktop/stanford/senior year/thesis/analysis/Dataset2.xlsx", 3, sep.names = "_")
+```
+
+```{r}
+t1 <- t1 %>%
+  add_count(Room_Assignment_for_Day_1) %>%
+  add_count(Room_Assignment_for_Day_2) %>%
+  rename(Political_Scale = `Political_Ideology_(Scale)`) 
+  
+t2 <- t2 %>%
+  add_count(Room_Assignment_for_Day_1) %>%
+  add_count(Room_Assignment_for_Day_2) %>%
+  rename(Political_Scale = `Political_Ideology_(Scale)`) 
+```
+
+
+```{r, echo=FALSE}
+groups_t1 <- t1 %>%
+  group_by(Room_Assignment_for_Day_1) %>%
+  summarise_all(~ mean(.x, na.rm = TRUE))
+
+groups_t2 <- t2 %>%
+  group_by(Room_Assignment_for_Day_1) %>%
+  summarise_all(~ mean(.x, na.rm = TRUE))
+```
+
+```{r}
+highly_liberal <- t1 %>%
+  group_by(Room_Assignment_for_Day_1, Political_Scale) %>%
+  summarise(n = n()) 
+
+groups_w_conservatives <- highly_liberal %>%
+  filter(Political_Scale >= 6)
+
+vec <- groups_w_conservatives$Room_Assignment_for_Day_1
+
+lib_only <- highly_liberal %>%
+  filter(!(Room_Assignment_for_Day_1 %in% vec))
+
+liberal_only_groups <- unique(lib_only$Room_Assignment_for_Day_1)
+```
+
+```{r}
+libs_t1 <- groups_t1 %>%
+  filter(Room_Assignment_for_Day_1 %in% liberal_only_groups)
+
+libs_t2 <- groups_t2 %>%
+  filter(Room_Assignment_for_Day_1 %in% liberal_only_groups)
+
+libs_mean_t1 <- sapply(libs_t1, mean, na.rm = TRUE)
+libs_mean_t2 <- sapply(libs_t2, mean, na.rm = TRUE)
+
+libs_mean_overall <- as.data.frame(cbind(libs_mean_t1, libs_mean_t2)) %>%
+  rownames_to_column("question") %>%
+  mutate(diff = libs_mean_t2 - libs_mean_t1, towards_mean = abs(libs_mean_t1 - 5) - abs(libs_mean_t2 - 5), moderated = ifelse(abs(libs_mean_t1 - 5) > abs(libs_mean_t2 - 5), T, F))
+
+libs_proposals <- libs_mean_overall %>%
+  filter(str_detect(question, "Proposal"))
+
+number_libs <- t1 %>%
+  filter(Room_Assignment_for_Day_1 %in% liberal_only_groups)
+
+libs_proposals$question <- factor(libs_proposals$question, levels=mixedsort(as.character(libs_proposals$question)))
+
+libs_proposal_plot <- ggplot(data=libs_proposals, aes(x=question, y=towards_mean)) +
+  geom_bar(stat="identity",fill="#333333") +
+  xlab("Proposal Number") +
+  ylab("Movement towards Middle") +
+  labs(caption = paste("Number of liberal-only groups: ", nrow(libs_t1))) +
+  ggtitle("Moderation among Participants in Liberal-Only (Individual) Groups") +
+  theme_bw() +
+  scale_fill_grey() + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))
+
+libs_proposal_plot
+```
+
+```{r}
+not_libs_t1 <- groups_t1 %>%
+  filter(!(Room_Assignment_for_Day_1 %in% liberal_only_groups))
+
+not_libs_t2 <- groups_t2 %>%
+  filter(!(Room_Assignment_for_Day_1 %in% liberal_only_groups))
+
+not_libs_mean_t1 <- sapply(not_libs_t1, mean, na.rm = TRUE)
+not_libs_mean_t2 <- sapply(not_libs_t2, mean, na.rm = TRUE)
+
+not_libs_mean_overall <- as.data.frame(cbind(not_libs_mean_t1, not_libs_mean_t2)) %>%
+  rownames_to_column("question") %>%
+  mutate(diff = not_libs_mean_t2 - not_libs_mean_t1, towards_mean = abs(not_libs_mean_t1 - 5) - abs(not_libs_mean_t2 - 5), moderated = ifelse(abs(not_libs_mean_t1 - 5) > abs(not_libs_mean_t2 - 5), T, F))
+
+not_libs_proposals <- not_libs_mean_overall %>%
+  filter(str_detect(question, "Proposal"))
+
+not_libs_proposals$question <- factor(not_libs_proposals$question, levels=mixedsort(as.character(not_libs_proposals$question)))
+
+number_not_libs <- t1 %>%
+  filter(!(Room_Assignment_for_Day_1 %in% liberal_only_groups))
+
+not_libs_proposal_plot <- ggplot(data=not_libs_proposals, aes(x=question, y=towards_mean)) +
+  geom_bar(stat="identity",fill="#333333") +
+  xlab("Proposal Number") +
+  #theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  ylab("Movement towards Middle") +
+  labs(caption = paste("Number of diverse groups: ", nrow(not_libs_t1))) +
+  ggtitle("Moderation among Participants in Diverse (Individual) Groups") +
+   theme_bw() +
+  scale_fill_grey() + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))
+not_libs_proposal_plot
+```
+
+
+```{r}
+very_liberal_t1 <- groups_t1 %>%
+  filter(Political_Scale <= 4)
+
+very_liberal_t2 <- groups_t2 %>%
+  filter(Political_Scale <= 4)
+
+other_t1 <- groups_t1 %>%
+  filter(Political_Scale > 4)
+
+other_t2 <- groups_t2 %>%
+  filter(Political_Scale > 4)
+```
+
+```{r}
+very_mean_t1 <- sapply(very_liberal_t1, mean, na.rm = TRUE)
+very_mean_t2 <- sapply(very_liberal_t2, mean, na.rm = TRUE)
+
+very_mean_overall <- as.data.frame(cbind(very_mean_t1, very_mean_t2)) %>%
+  rownames_to_column("question") %>%
+  mutate(diff = very_mean_t2 - very_mean_t1, towards_mean = abs(very_mean_t1 - 5) - abs(very_mean_t2 - 5), moderated = ifelse(abs(very_mean_t1 - 5) > abs(very_mean_t2 - 5), T, F))
+```
+
+```{r}
+other_mean_t1 <- sapply(other_t1, mean, na.rm = TRUE)
+other_mean_t2 <- sapply(other_t2, mean, na.rm = TRUE)
+
+other_mean_overall <- as.data.frame(cbind(other_mean_t1, other_mean_t2)) %>%
+  rownames_to_column("question") %>%
+  mutate(diff = other_mean_t2 - other_mean_t1, towards_mean = abs(other_mean_t1 - 5) - abs(other_mean_t2 - 5), moderated = ifelse(abs(other_mean_t1 - 5) > abs(other_mean_t2 - 5), T, F))
+```
+
+```{r}
+very_proposals <- very_mean_overall %>%
+  filter(str_detect(question, "Proposal"))
+
+very_proposals$question <- factor(very_proposals$question, levels=mixedsort(as.character(very_proposals$question)))
+
+agg_lib_proposal_plot <- ggplot(data=very_proposals, aes(x=question, y=towards_mean)) +
+  geom_bar(stat="identity",fill="#333333") +
+  xlab("Proposal Number") +
+  #theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  ylab("Movement towards Middle") +
+  labs(caption = paste("Number of aggregate liberal groups: ", nrow(very_liberal_t1))) +
+  ggtitle("Moderation among Liberal (Aggregate) Groups") +
+  theme_bw() +
+  scale_fill_grey() + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) 
+agg_lib_proposal_plot
+```
+```{r}
+other_proposals <- other_mean_overall %>%
+  filter(str_detect(question, "Proposal"))
+
+other_proposals$question <- factor(other_proposals$question, levels=mixedsort(as.character(other_proposals$question)))
+
+agg_non_lib_proposal_plot <- ggplot(data=other_proposals, aes(x=question, y=towards_mean)) +
+  geom_bar(stat="identity",fill="#333333") +
+  xlab("Proposal Number") +
+ # theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  ylab("Movement towards Middle") +
+  labs(caption = paste("Number of aggregate non-liberal groups: ", nrow(other_t1))) +
+  ggtitle("Moderation among Non-Liberal (Aggregate) Groups") +
+   theme_bw() +
+  scale_fill_grey() + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))
+
+agg_non_lib_proposal_plot
+```
+```{r}
+agg_lib_proposal_plot <- agg_lib_proposal_plot +
+  theme(text=element_text(family="LatinModern"))
+agg_non_lib_proposal_plot <- agg_non_lib_proposal_plot +
+  theme(text=element_text(family="LatinModern"))
+libs_proposal_plot <- libs_proposal_plot +
+  theme(text=element_text(family="LatinModern"))
+not_libs_proposal_plot <- not_libs_proposal_plot +
+  theme(text=element_text(family="LatinModern"))
+```
+
+```{r}
+
+```
+
+
+```{r}
+setwd("/Users/ykhan/Desktop/stanford/senior year/thesis/figures")
+
+ggsave("agg_lib.pdf", plot = agg_lib_proposal_plot, width = 9, height = 6, dpi = 300)
+ggsave("agg_non_lib.pdf", plot = agg_non_lib_proposal_plot, width = 9, height = 6, dpi = 300)
+ggsave("lib_only.pdf", plot = libs_proposal_plot, width = 9, height = 6, dpi = 300)
+ggsave("diverse.pdf", plot = not_libs_proposal_plot, width = 9, height = 6, dpi = 300)
+
+
+```
+
+
+
+
+
+

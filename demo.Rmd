@@ -1,0 +1,458 @@
+---
+title: "demo"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(stringr)
+library(modelr)
+library(purrr)
+library(reshape2)
+library(gtools)
+library(readxl)
+library(openxlsx)
+library(showtext)
+```
+
+```{r}
+font.add("LatinModern", "lmroman10-regular.otf")
+showtext.auto()
+```
+
+
+```{r}
+t1 <- read.xlsx("~/Desktop/stanford/senior year/thesis/analysis/Dataset2.xlsx", 2, sep.names = "_")
+t2 <- read.xlsx("~/Desktop/stanford/senior year/thesis/analysis/Dataset2.xlsx", 3, sep.names = "_")
+```
+
+```{r}
+income <- t1 %>%
+  group_by(Household_Income_Level) %>%
+  summarize(n = n(), percent = n()/541*100)
+```
+
+
+```{r}
+t1 <- t1 %>%
+  filter(Education_Category != 1)
+
+t2 <- t2 %>%
+  filter(Education_Category != 1)
+```
+
+
+```{r}
+gender_all <- t1 %>%
+  group_by(Gender) %>%
+  summarize(n = n(), pct = n()/617*100)
+
+gender_college <- t1 %>%
+  filter(Education_Category != 1) %>%
+  group_by(Gender) %>%
+  summarize(n = n(), pct = n()/541*100)
+```
+
+```{r}
+race_college <- t1 %>%
+  filter(Education_Category != 1) %>%
+  group_by(Race_and_Ethnicity) %>%
+  summarize(n = n(), pct = n()/541*100)
+```
+
+
+```{r}
+income_all <- t1 %>%
+  group_by(Household_Income_Level) %>%
+  summarize(n = n(), pct = n()/617*100)
+
+income_college <- t1 %>%
+  filter(Education_Category != 1) %>%
+  group_by(Household_Income_Level) %>%
+  summarize(n = n(), pct = n()/541*100)
+```
+
+```{r}
+party_all <- t1 %>%
+  group_by(Political_Party_Preference) %>%
+  summarize(n = n(), pct = n()/617*100)
+
+party_college <- t1 %>%
+  filter(Education_Category != 1) %>%
+  group_by(Political_Party_Preference) %>%
+  summarize(n = n(), pct = n()/541*100)
+```
+
+```{r}
+t.test(t1$Proposal_1, t2$Proposal_1)
+t.test(t1$Proposal_2, t2$Proposal_2)
+t.test(t1$Proposal_3, t2$Proposal_3)
+t.test(t1$Proposal_4, t2$Proposal_4)
+t.test(t1$Proposal_5, t2$Proposal_5)
+t.test(t1$Proposal_6, t2$Proposal_6)
+t.test(t1$Proposal_7, t2$Proposal_7)
+t.test(t1$Proposal_8, t2$Proposal_8)
+t.test(t1$Proposal_9, t2$Proposal_9)
+t.test(t1$Proposal_10, t2$Proposal_10)
+t.test(t1$Proposal_11, t2$Proposal_11)
+t.test(t1$Proposal_12, t2$Proposal_12)
+
+```
+```{r}
+combine <- merge(t1, t2, by = "Identification_Number")
+```
+
+```{r}
+pro_3 <- combine %>%
+  #filter(`Political_Ideology_(Scale).x` < 2) %>%
+  select(Identification_Number, Proposal_3.x, Proposal_3.y)
+
+pro_3_long <- gather(pro_3, Timing, value, Proposal_3.x:Proposal_3.y, factor_key = TRUE) %>%
+  mutate(Timing = recode(Timing, "Proposal_3.x" = "Pre-Deliberation", "Proposal_3.y"= "Post-Deliberation"))
+
+prop_3_hist <- ggplot(data=pro_3_long, aes(x=value, fill = Timing)) +
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 215) +
+  labs(caption = paste("Number of participants: ", sum(!is.na(t1$Proposal_3) & !is.na(t2$Proposal_3)))) +
+  xlab("Rating (Scale: 0-10)") +
+  ylab("Count") +
+  ggtitle("Proposal 3 (Regional Minimum Wage) among Higher-Ed Participants") +
+  theme_bw() +
+  scale_fill_grey() 
+
+vlines_3 <- data.frame(value = c(mean(t1$Proposal_3, na.rm = TRUE), mean(t2$Proposal_3, na.rm = TRUE)),Mean = c("Pre-Deliberation", "Post-Deliberation"))
+
+prop_3_hist <- prop_3_hist +
+  geom_vline(data=vlines_3,
+                  aes(xintercept=value, linetype=Mean), show.guide=TRUE) +
+  scale_linetype(limits = c("Pre-Deliberation", "Post-Deliberation"))
+
+
+prop_3_hist
+```
+```{r}
+sum(pro_3$Proposal_3.x == 0, na.rm = TRUE)
+sum(pro_3$Proposal_3.y == 0, na.rm = TRUE)
+```
+
+
+```{r}
+party <- combine %>%
+  select(Identification_Number, `Political_Ideology_(Scale).x`, `Political_Ideology_(Scale)_(After_Deliberation).y`)
+
+party_long <- gather(party, Timing, value, `Political_Ideology_(Scale).x`:`Political_Ideology_(Scale)_(After_Deliberation).y`, factor_key = TRUE) %>%
+  mutate(Timing = recode(Timing, "Political_Ideology_(Scale).x" = "Pre-Deliberation", "Political_Ideology_(Scale)_(After_Deliberation).y"= "Post-Deliberation"))
+
+party_hist <- ggplot(data=party_long, aes(x=value, fill = Timing)) +
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 100) +
+  labs(caption = paste("Number of participants: ", sum(!is.na(t1$`Political_Ideology_(Scale)`) & !is.na(t2$`Political_Ideology_(Scale)`)))) +
+  xlab("Rating (Scale: 0-10)") +
+  ylab("Count") +
+  ggtitle("Political Scale among Higher-Ed Participants") +
+  theme_bw() +
+  scale_fill_grey() 
+
+vlines_part <- data.frame(value = c(mean(party$`Political_Ideology_(Scale).x`, na.rm = TRUE), mean(party$`Political_Ideology_(Scale)_(After_Deliberation).y`, na.rm = TRUE)),Mean = c("Pre-Deliberation", "Post-Deliberation"))
+
+party_hist <- party_hist +
+  geom_vline(data=vlines_part,
+                  aes(xintercept=value, linetype=Mean), show.guide=TRUE) +
+  scale_linetype(limits = c("Pre-Deliberation", "Post-Deliberation"))
+ 
+
+party_hist
+```
+
+
+```{r}
+pro_4 <- combine %>%
+  select(Identification_Number, Proposal_4.x, Proposal_4.y)
+
+pro_4_long <- gather(pro_4, Timing, value, Proposal_4.x:Proposal_4.y, factor_key = TRUE) %>%
+  mutate(Timing = recode(Timing, "Proposal_4.x" = "Pre-Deliberation", "Proposal_4.y"= "Post-Deliberation"))
+
+prop_4_hist <- ggplot(data=pro_4_long, aes(x=value, fill = Timing)) +
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 215) +
+  labs(caption = paste("Number of participants: ", sum(!is.na(t1$Proposal_4) & !is.na(t2$Proposal_4)))) +
+  xlab("Rating (Scale: 0-10)") +
+  ylab("Count") +
+  ggtitle("Proposal 4 ($15 Minimum Wage) among Higher-Ed Participants") +
+  theme_bw() +
+  scale_fill_grey() 
+
+vlines_4 <- data.frame(value = c(mean(t1$Proposal_4, na.rm = TRUE), mean(t2$Proposal_4, na.rm = TRUE)),Mean = c("Pre-Deliberation", "Post-Deliberation"))
+
+prop_4_hist <- prop_4_hist +
+  geom_vline(data=vlines_4,
+                  aes(xintercept=value, linetype=Mean), show.guide=TRUE) +
+  scale_linetype(limits = c("Pre-Deliberation", "Post-Deliberation"))
+
+prop_4_hist
+```
+```{r}
+pro_5 <- combine %>%
+  select(Identification_Number, Proposal_5.x, Proposal_5.y)
+
+pro_5_long <- gather(pro_5, Timing, value, Proposal_5.x:Proposal_5.y, factor_key = TRUE) %>%
+  mutate(Timing = recode(Timing, "Proposal_5.x" = "Pre-Deliberation", "Proposal_5.y"= "Post-Deliberation"))
+
+prop_5_hist <- ggplot(data=pro_5_long, aes(x=value, fill = Timing)) +
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 215) +
+  labs(caption = paste("Number of participants: ", sum(!is.na(t1$Proposal_5) & !is.na(t2$Proposal_5)))) +
+  xlab("Rating (Scale: 0-10)") +
+  ylab("Count") +
+  ggtitle("Proposal 5 (Universal Basic Income) among Higher-Ed Participants") +
+  theme_bw() +
+  scale_fill_grey() 
+
+vlines_5 <- data.frame(value = c(mean(t1$Proposal_5, na.rm = TRUE), mean(t2$Proposal_5, na.rm = TRUE)),Mean = c("Pre-Deliberation", "Post-Deliberation"))
+
+prop_5_hist <- prop_5_hist +
+  geom_vline(data=vlines_5,
+                  aes(xintercept=value, linetype=Mean), show.guide=TRUE) +
+  scale_linetype(limits = c("Pre-Deliberation", "Post-Deliberation"))
+
+prop_5_hist
+```
+
+```{r}
+pro_8 <- combine %>%
+  select(Identification_Number, Proposal_8.x, Proposal_8.y)
+
+pro_8_long <- gather(pro_8, Timing, value, Proposal_8.x:Proposal_8.y, factor_key = TRUE) %>%
+  mutate(Timing = recode(Timing, "Proposal_8.x" = "Pre-Deliberation", "Proposal_8.y"= "Post-Deliberation"))
+
+prop_8_hist <- ggplot(data=pro_8_long, aes(x=value, fill = Timing)) +
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 215) +
+  labs(caption = paste("Number of participants: ", sum(!is.na(t1$Proposal_8) & !is.na(t2$Proposal_8)))) +
+  xlab("Rating (Scale: 0-10)") +
+  ylab("Count") +
+  ggtitle("Proposal 8 (National Popular Vote) among Higher-Ed Participants") +
+  theme_bw() +
+  scale_fill_grey() 
+
+vlines_8 <- data.frame(value = c(mean(t1$Proposal_8, na.rm = TRUE), mean(t2$Proposal_8, na.rm = TRUE)),Mean = c("Pre-Deliberation", "Post-Deliberation"))
+
+prop_8_hist <- prop_8_hist +
+  geom_vline(data=vlines_8,
+                  aes(xintercept=value, linetype=Mean), show.guide=TRUE) +
+  scale_linetype(limits = c("Pre-Deliberation", "Post-Deliberation"))
+
+prop_8_hist
+```
+
+
+
+```{r}
+dems <- combine %>%
+  filter(Political_Party_Preference.x == 1)
+
+indies <- combine %>%
+  filter(Political_Party_Preference.x == 2)
+
+reps <- combine %>%
+  filter(Political_Party_Preference.x == 3)
+```
+
+```{r}
+reps_summ <- reps %>%
+  select(Identification_Number, View_of_the_Democratic_Party.x, View_of_the_Democratic_Party.y, View_of_the_Republican_Party.x, View_of_the_Republican_Party.y, View_of_the_President.x, View_of_the_President.y, View_of_Congress.x, View_of_Congress.y) 
+
+reps_summ1 <- sapply(reps_summ, FUN=mean, na.rm = TRUE)
+
+reps_summ.df <- data.frame(t(data.frame(reps_summ1)))
+
+reps1 <- reps_summ.df %>%
+  select(Identification_Number, View_of_the_Democratic_Party.x, View_of_the_Democratic_Party.y) %>%
+  gather(Timing, `Democratic Party`, View_of_the_Democratic_Party.x:View_of_the_Democratic_Party.y, 
+                 factor_key = TRUE) %>%
+  mutate(Timing = recode(Timing, "View_of_the_Democratic_Party.x" = "Pre-Deliberation", "View_of_the_Democratic_Party.y"= "Post-Deliberation")) 
+
+reps2 <- reps_summ.df %>%
+  select(Identification_Number, View_of_the_Republican_Party.x, View_of_the_Republican_Party.y) %>%
+  gather(Timing,  `Republican Party`, View_of_the_Republican_Party.x:View_of_the_Republican_Party.y, 
+                 factor_key = TRUE) %>%
+  mutate(Timing = recode(Timing, "View_of_the_Republican_Party.x" = "Pre-Deliberation", "View_of_the_Republican_Party.y"= "Post-Deliberation")) 
+
+# reps3 <- reps_summ.df %>%
+#   select(Identification_Number, View_of_the_President.x, View_of_the_President.y) %>%
+#   gather(Timing, President, View_of_the_President.x:View_of_the_President.y, 
+#                  factor_key = TRUE) %>%
+#   mutate(Timing = recode(Timing, "View_of_the_President.x" = "Pre-Deliberation", "View_of_the_President.y"= "Post-Deliberation")) 
+
+# reps4 <- reps_summ.df %>%
+#    select(Identification_Number, View_of_Congress.x, View_of_Congress.y) %>%
+#   gather(Timing, Congress, View_of_Congress.x:View_of_Congress.y, 
+#                  factor_key = TRUE) %>%
+#   mutate(Timing = recode(Timing, "View_of_Congress.x" = "Pre-Deliberation", "View_of_Congress.y"= "Post-Deliberation")) 
+
+reps_all1 <- merge(reps1, reps2, by = c("Identification_Number", "Timing"))
+
+# reps_all2 <- merge(reps3, reps4, by = c("Identification_Number", "Timing"))
+# 
+# reps_all <- merge(reps_all1, reps_all2, by = c("Identification_Number", "Timing"))
+
+df_rep <- reps_all1 %>%
+  gather(key = type, value = Value, `Democratic Party`:`Republican Party`, factor_key = TRUE)
+```
+
+```{r}
+dems_summ <- dems %>%
+  select(Identification_Number, View_of_the_Democratic_Party.x, View_of_the_Democratic_Party.y, View_of_the_Republican_Party.x, View_of_the_Republican_Party.y, View_of_the_President.x, View_of_the_President.y, View_of_Congress.x, View_of_Congress.y) 
+
+dems_summ1 <- sapply(dems_summ, FUN=mean, na.rm = TRUE)
+
+dems_summ.df <- data.frame(t(data.frame(dems_summ1)))
+
+dems1 <- dems_summ.df %>%
+  select(Identification_Number, View_of_the_Democratic_Party.x, View_of_the_Democratic_Party.y) %>%
+  gather(Timing, `Democratic Party`, View_of_the_Democratic_Party.x:View_of_the_Democratic_Party.y, 
+                 factor_key = TRUE) %>%
+  mutate(Timing = recode(Timing, "View_of_the_Democratic_Party.x" = "Pre-Deliberation", "View_of_the_Democratic_Party.y"= "Post-Deliberation")) 
+
+dems2 <- dems_summ.df %>%
+  select(Identification_Number, View_of_the_Republican_Party.x, View_of_the_Republican_Party.y) %>%
+  gather(Timing,  `Republican Party`, View_of_the_Republican_Party.x:View_of_the_Republican_Party.y, 
+                 factor_key = TRUE) %>%
+  mutate(Timing = recode(Timing, "View_of_the_Republican_Party.x" = "Pre-Deliberation", "View_of_the_Republican_Party.y"= "Post-Deliberation")) 
+
+dems_all1 <- merge(dems1, dems2, by = c("Identification_Number", "Timing"))
+
+df_dem <- dems_all1 %>%
+  gather(key = type, value = Value, `Democratic Party`:`Republican Party`, factor_key = TRUE)
+```
+
+```{r}
+t.test(reps$View_of_the_Democratic_Party.x, reps$View_of_the_Democratic_Party.y)
+t.test(reps$View_of_the_Republican_Party.x, reps$View_of_the_Republican_Party.y)
+```
+
+
+```{r}
+indies_summ <- indies %>%
+  select(Identification_Number, View_of_the_Democratic_Party.x, View_of_the_Democratic_Party.y, View_of_the_Republican_Party.x, View_of_the_Republican_Party.y, View_of_the_President.x, View_of_the_President.y, View_of_Congress.x, View_of_Congress.y) 
+
+indies_summ1 <- sapply(indies_summ, FUN=mean, na.rm = TRUE)
+
+indies_summ.df <- data.frame(t(data.frame(indies_summ1)))
+
+indies1 <- indies_summ.df %>%
+  select(Identification_Number, View_of_the_Democratic_Party.x, View_of_the_Democratic_Party.y) %>%
+  gather(Timing, `Democratic Party`, View_of_the_Democratic_Party.x:View_of_the_Democratic_Party.y, 
+                 factor_key = TRUE) %>%
+  mutate(Timing = recode(Timing, "View_of_the_Democratic_Party.x" = "Pre-Deliberation", "View_of_the_Democratic_Party.y"= "Post-Deliberation")) 
+
+indies2 <- indies_summ.df %>%
+  select(Identification_Number, View_of_the_Republican_Party.x, View_of_the_Republican_Party.y) %>%
+  gather(Timing,  `Republican Party`, View_of_the_Republican_Party.x:View_of_the_Republican_Party.y, 
+                 factor_key = TRUE) %>%
+  mutate(Timing = recode(Timing, "View_of_the_Republican_Party.x" = "Pre-Deliberation", "View_of_the_Republican_Party.y"= "Post-Deliberation")) 
+
+indies_all1 <- merge(indies1, indies2, by = c("Identification_Number", "Timing"))
+
+df_indie <- indies_all1 %>%
+  gather(key = type, value = Value, `Democratic Party`:`Republican Party`, factor_key = TRUE)
+```
+
+```{r}
+rep_plot <- ggplot(data = df_rep, aes(x = type, y = Value, fill = Timing)) + 
+  geom_col(position = "dodge") +
+  geom_text(aes(label=round(Value, digits = 2)), position=position_dodge(width=0.9), vjust=-1.5, family="LatinModern") +
+  ylim(0, 100) +
+  labs(caption = paste("Number of self-identified Republicans: ", sum(!is.na(reps$Identification_Number)))) +
+  xlab("Views Towards") +
+  ylab("Temperature Rating (0-100 Scale)") +
+  ggtitle("Temperature Ratings (Self-Identified Republican Higher-Ed Participants)") +
+  theme_bw() +
+  scale_fill_grey() +
+  geom_errorbar(aes(ymin=Value-1.5, ymax=Value+1.5), width=.1,
+                 position=position_dodge(.9), color = "dimgrey") 
+rep_plot
+```
+
+```{r}
+dem_plot <- ggplot(data = df_dem, aes(x = type, y = Value, fill = Timing)) + 
+  geom_col(position = "dodge") +
+  geom_text(aes(label=round(Value, digits = 2)), position=position_dodge(width=0.9), vjust=-1, family="LatinModern") +
+  ylim(0, 100) +
+  labs(caption = paste("Number of self-identified Democrats: ", sum(!is.na(dems$Identification_Number)))) +
+  xlab("Views Towards") +
+  ylab("Temperature Rating (0-100 Scale)") +
+  ggtitle("Temperature Ratings (Self-Identified Democratic Higher-Ed Participants)") +
+  theme_bw() +
+  scale_fill_grey() +
+  geom_errorbar(aes(ymin=Value-1.5, ymax=Value+1.5), width=.1,
+                 position=position_dodge(.9), color = "dimgrey") 
+dem_plot
+```
+```{r}
+indie_plot <- ggplot(data = df_indie, aes(x = type, y = Value, fill = Timing)) + 
+  geom_col(position = "dodge") +
+  geom_text(aes(label=round(Value, digits = 2)), position=position_dodge(width=0.9), vjust=-1, family="LatinModern") +
+  ylim(0, 100) +
+  labs(caption = paste("Number of self-identified Independents: ", sum(!is.na(indies$Identification_Number)))) +
+  xlab("Views Towards") +
+  ylab("Temperature Rating (0-100 Scale)") +
+  ggtitle("Temperature Ratings (Self-Identified Independent Higher-Ed Participants)") +
+  theme_bw() +
+  scale_fill_grey() +
+  geom_errorbar(aes(ymin=Value-1.5, ymax=Value+1.5), width=.1,
+                 position=position_dodge(.9), color = "dimgrey") 
+dem_plot
+```
+
+```{r}
+rep_plot
+dem_plot
+indie_plot
+```
+
+```{r}
+prop_3_hist <- prop_3_hist +
+  theme(text=element_text(family="LatinModern"))
+prop_4_hist <- prop_4_hist +
+  theme(text=element_text(family="LatinModern"))
+prop_5_hist <- prop_5_hist +
+  theme(text=element_text(family="LatinModern"))
+prop_8_hist <- prop_8_hist +
+  theme(text=element_text(family="LatinModern"))
+party_hist <- party_hist +
+  theme(text=element_text(family="LatinModern"))
+rep_plot <- rep_plot +
+  theme(text=element_text(family="LatinModern"))
+dem_plot <- dem_plot +
+  theme(text=element_text(family="LatinModern"))
+indie_plot <- indie_plot +
+  theme(text=element_text(family="LatinModern"))
+```
+
+```{r}
+rep_plot
+```
+
+
+```{r}
+setwd("/Users/ykhan/Desktop/stanford/senior year/thesis/figures")
+ggsave("rep_temp.pdf", plot = rep_plot, width = 9, height = 6, dpi = 300)
+ggsave("dem_temp.pdf", plot = dem_plot, width = 9, height = 6, dpi = 300)
+ggsave("indie_temp.pdf", plot = indie_plot, width = 9, height = 6, dpi = 300)
+# ggsave("party_hist.pdf", plot = party_hist, width = 9, height = 6, dpi = 300)
+# ggsave("prop_3_hist.pdf", plot = prop_3_hist, width = 9, height = 6, dpi = 300)
+# ggsave("prop_4_hist.pdf", plot = prop_4_hist, width = 9, height = 6, dpi = 300)
+# ggsave("prop_5_hist.pdf", plot = prop_5_hist, width = 9, height = 6, dpi = 300)
+# ggsave("prop_8_hist.pdf", plot = prop_8_hist, width = 9, height = 6, dpi = 300)
+```
+
+

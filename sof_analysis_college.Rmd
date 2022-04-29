@@ -1,0 +1,475 @@
+---
+title: "SOF Analysis College"
+output: pdf_document
+---
+
+```{r, echo=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(stringr)
+library(modelr)
+library(purrr)
+library(reshape2)
+library(gtools)
+library(readxl)
+library(openxlsx)
+library(showtext)
+```
+
+```{r}
+font.add("LatinModern", "lmroman10-regular.otf")
+showtext.auto()
+```
+
+
+```{r}
+t1 <- read.xlsx("~/Desktop/stanford/senior year/thesis/analysis/Dataset2.xlsx", 2, sep.names = "_")
+t2 <- read.xlsx("~/Desktop/stanford/senior year/thesis/analysis/Dataset2.xlsx", 3, sep.names = "_")
+```
+
+```{r}
+#t1 <- read.xlsx("~/Desktop/stanford/senior year/thesis/analysis/Dataset.xlsx", 2, sep.names = "_")
+#t2 <- read.xlsx("~/Desktop/stanford/senior year/thesis/analysis/Dataset.xlsx", 3, sep.names = "_")
+```
+
+```{r}
+#t1 <- read_excel("~/Desktop/stanford/senior year/thesis/analysis/Dataset.xlsx", 2, .name_repair = function(x) gsub("\\s+", "_", x))
+#t2 <- read_excel("~/Desktop/stanford/senior year/thesis/analysis/Dataset.xlsx", 3, .name_repair = function(x) gsub("\\s+", "_", x))
+```
+
+```{r}
+t1 <- t1 %>%
+  filter(Education_Category != 1)
+
+t2 <- t2 %>%
+  filter(Education_Category != 1)
+```
+
+```{r}
+t1 <- t1 %>%
+  mutate(school_type = ifelse(University_Type == 1, "Private", ifelse(University_Type == 2, "Public", ifelse(University_Type == 3, "Community", NA))))
+
+t2 <- t2 %>%
+  mutate(school_type = ifelse(University_Type == 1, "Private", ifelse(University_Type == 2, "Public", ifelse(University_Type == 3, "Community", NA))))
+```
+
+```{r}
+mean_t1 <- sapply(t1, mean, na.rm = TRUE)
+mean_t2 <- sapply(t2, mean, na.rm = TRUE)
+
+mean_overall <- as.data.frame(cbind(mean_t1, mean_t2)) %>%
+  rownames_to_column("question") %>%
+  mutate(diff = mean_t2 - mean_t1, towards_mean = abs(mean_t1 - 5) - abs(mean_t2 - 5), moderated = ifelse(abs(mean_t1 - 5) > abs(mean_t2 - 5), T, F))
+```
+
+```{r}
+proposals <- mean_overall %>%
+  filter(str_detect(question, "Proposal"))
+```
+
+```{r}
+prop_long <- proposals %>%
+  gather(Timing, Value, mean_t1:mean_t2) %>%
+  mutate(Timing = recode(Timing, "mean_t1" = "Pre-Deliberation", "mean_t2" = "Post-Deliberation")) %>%
+  select(question, Timing, Value)
+
+prop_long$Timing <- factor(prop_long$Timing, levels=c("Pre-Deliberation", "Post-Deliberation"))
+
+prop_long$question <- factor(prop_long$question, levels = c("Proposal_1", "Proposal_2", "Proposal_3","Proposal_4","Proposal_5","Proposal_6","Proposal_7","Proposal_8","Proposal_9","Proposal_10","Proposal_11","Proposal_12"))
+
+```
+
+```{r}
+prop_time_plot <- ggplot(data=prop_long, aes(x = question, y = Value, fill = Timing)) + 
+  geom_col(position = "dodge") +
+  ylim(0, 10) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(t1$Identification_Number)))) +
+  #theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  xlab("Proposal Number") +
+  ylab("Mean Rating (0-10 Scale)") +
+  ggtitle("Proposal Change Pre- and Post-Deliberation among Higher-Ed Participants") +
+  geom_errorbar(aes(ymin=Value-mean(proposals$diff), ymax=Value+mean(proposals$diff)), width=.2,
+                 position=position_dodge(.9), color = "dimgrey") +
+  theme_bw() +
+  scale_fill_grey() + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))
+
+prop_time_plot
+```
+
+
+```{r}
+proposals$question <- factor(proposals$question, levels=mixedsort(as.character(proposals$question)))
+
+proposal_plot <- ggplot(data=proposals, aes(x=question, y=towards_mean)) +
+  geom_bar(stat="identity",fill="#333333") +
+  xlab("Proposal Number") +
+  #theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  ylab("Movement towards Middle") +
+  labs(caption = paste("Number of observations: ", nrow(t1))) +
+  ggtitle("Proposal Movement towards Middle among Higher-Ed Participants") +
+  scale_fill_grey() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))
+
+proposal_plot
+```
+
+```{r}
+prop_time_plot <- prop_time_plot +
+  theme(text=element_text(family="LatinModern"))
+proposal_plot <- proposal_plot +
+  theme(text=element_text(family="LatinModern"))
+
+setwd("/Users/ykhan/Desktop/stanford/senior year/thesis/figures")
+
+ggsave("change_delib.pdf", plot = prop_time_plot, width = 9, height = 6, dpi = 1200)
+ggsave("middle.pdf", plot = proposal_plot, width = 9, height = 6, dpi = 1200)
+```
+
+
+```{r}
+motivations <- mean_overall %>%
+  filter(str_detect(question, "Motivations"))
+
+motivations$question <- factor(motivations$question, levels=mixedsort(as.character(motivations$question)))
+
+motivation_plot <- ggplot(data=motivations, aes(x=question, y=towards_mean)) +
+  geom_bar(stat="identity") +
+  xlab("Question") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  ylab("Movement towards Mean") +
+  labs(caption = paste("Number of observations: ", nrow(t1))) +
+  ggtitle("Motivations Moderation")
+motivation_plot
+```
+
+```{r}
+values <- mean_overall %>%
+  filter(str_detect(question, "Values"))
+
+values$question <- factor(values$question, levels=mixedsort(as.character(values$question)))
+
+value_plot <- ggplot(data=values, aes(x=question, y=towards_mean)) +
+  geom_bar(stat="identity") +
+  xlab("Question") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  ylab("Movement towards Mean") +
+  labs(caption = paste("Number of observations: ", nrow(t1))) +
+  ggtitle("Values Moderation")
+value_plot
+```
+```{r}
+affective <- mean_overall %>%
+  filter(str_detect(question, "Mutual_Respect"))
+
+affective$question <- factor(affective$question, levels=mixedsort(as.character(affective$question)))
+
+affective_plot <- ggplot(data=affective, aes(x=question, y=towards_mean)) +
+  geom_bar(stat="identity") +
+  xlab("Question") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  ylab("Movement towards Mean") +
+  labs(caption = paste("Number of observations: ", nrow(t1))) +
+  ggtitle("Affective Moderation")
+affective_plot
+```
+
+```{r}
+outlook <- mean_overall %>%
+  filter(str_detect(question, "Outlook"))
+
+outlook$question <- factor(outlook$question, levels=mixedsort(as.character(outlook$question)))
+
+outlook_plot <- ggplot(data=outlook, aes(x=question, y=towards_mean)) +
+  geom_bar(stat="identity") +
+  xlab("Question") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  ylab("Movement towards Mean") +
+  labs(caption = paste("Number of observations: ", nrow(t1))) +
+  ggtitle("outlook Moderation")
+outlook_plot
+```
+
+
+```{r}
+views <- mean_overall %>%
+  filter(str_detect(question, "View")) %>%
+  mutate(diff = mean_t2 - mean_t1, towards_mean = abs(mean_t1 - 50) - abs(mean_t2 - 50), moderated = ifelse(abs(mean_t1 - 50) > abs(mean_t2 - 50), T, F))
+
+views_plot <- ggplot(data=views, aes(x=question, y=towards_mean)) +
+  geom_bar(stat="identity") +
+  xlab("Question") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  ylab("Movement towards Mean") +
+  labs(caption = paste("Number of observations: ", nrow(t1))) +
+  ggtitle("Views Moderation (Scale = 1:100)")
+views_plot
+
+```
+
+```{r}
+knowledge <- mean_overall %>%
+  filter(str_detect(question, "Knowledge")) %>%
+  select(question, mean_t1, mean_t2) %>%
+  rename(Time_1 = mean_t1, Time_2 = mean_t2)
+
+names <- knowledge$question
+knowledge <- as.data.frame(t(knowledge[-1]))
+colnames(knowledge) <- names
+
+knowledge <- knowledge %>%
+  rownames_to_column("time") 
+
+knowledge_melt <- melt(knowledge)
+```
+
+```{r}
+prop_3 <- mean_overall %>%
+  filter(str_detect(question, "Proposal_3")) %>%
+  select(question, mean_t1, mean_t2) %>%
+  rename(Time_1 = mean_t1, Time_2 = mean_t2)
+
+names <- prop_3$question
+prop_3 <- as.data.frame(t(prop_3[-1]))
+colnames(prop_3) <- names
+
+prop_3 <- prop_3 %>%
+  rownames_to_column("time") 
+
+prop_3_melt <- melt(prop_3)
+```
+
+```{r}
+prop_3_plot <- ggplot(data=prop_3_melt, aes(x=variable, y=value, fill=time)) +
+  geom_bar(stat="identity", position = position_dodge(), alpha = 1) +
+  xlab("Question") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  ylab("Percent Correcct") +
+  labs(caption = paste("Number of observations: ", nrow(t1))) +
+  scale_y_continuous(labels = scales::percent) +
+  ggtitle("% Correct of Knowledge Questions")
+prop_3_plot
+```
+
+
+```{r}
+knowledge_plot <- ggplot(data=knowledge_melt, aes(x=variable, y=value, fill=time)) +
+  geom_bar(stat="identity", position = position_dodge(), alpha = 1) +
+  xlab("Question") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5)) +
+  ylab("Percent Correcct") +
+  labs(caption = paste("Number of observations: ", nrow(t1))) +
+  scale_y_continuous(labels = scales::percent) +
+  ggtitle("% Correct of Knowledge Questions")
+knowledge_plot
+```
+
+```{r}
+proposal_plot
+motivation_plot
+views_plot
+affective_plot
+knowledge_plot
+```
+```{r}
+prop_3_hist1 <- ggplot(data=t1, aes(x=Proposal_3)) +
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 210) +
+  #stat_bin(binwidth=1, geom="text", aes(label=..count..), vjust=-1.5) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(t1$Proposal_3)))) +
+  xlab("Rating") +
+  ylab("Count") +
+  ggtitle("Regional Minimum Wage (Proposal 3) Pre-Event") +
+  geom_vline(aes(xintercept = mean(t1$Proposal_3, na.rm = TRUE)),linetype = 5)
+
+prop_3_hist2 <- ggplot(data=t2, aes(x=Proposal_3)) +
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 210) +
+#  stat_bin(binwidth=1, geom="text", aes(label=..count..), vjust=-1.5) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(t2$Proposal_3)))) +
+  xlab("Rating") +
+  ylab("Count") +
+  ggtitle("Regional Minimum Wage (Proposal 3) Post-Event") +
+  geom_vline(aes(xintercept = mean(t2$Proposal_3, na.rm = TRUE)),linetype = 5)
+
+prop_4_hist1 <- ggplot(data=t1, aes(x=Proposal_4, fill = school_type)) +
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 100) +
+ # stat_bin(binwidth=1, geom="text", aes(label=..count..), vjust=-1.5) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(t1$Proposal_4)))) +
+  xlab("Rating") +
+  ylab("Count") +
+  ggtitle("$15 Minimum Wage (Proposal 4) Pre-Event") +
+  geom_vline(aes(xintercept = mean(t1$Proposal_4, na.rm = TRUE)),linetype = 5)
+
+prop_4_hist2 <- ggplot(data=t2, aes(x=Proposal_4, fill = school_type)) +
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 100) +
+ # stat_bin(binwidth=1, geom="text", aes(label=..count..), vjust=-1.5) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(t2$Proposal_4)))) +
+  xlab("Rating") +
+  ylab("Count") +
+  ggtitle("$15 Minimum Wage (Proposal 4) Post-Event") +
+  geom_vline(aes(xintercept = mean(t2$Proposal_4, na.rm = TRUE)),linetype = 5)
+
+prop_5_hist1 <- ggplot(data=t1, aes(x=Proposal_5, fill = school_type)) +
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 100) +
+#  stat_bin(binwidth=1, geom="text", aes(label=..count..), vjust=-1.5) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(t1$Proposal_5)))) +
+  xlab("Rating") +
+  ylab("Count") +
+  ggtitle("Universal Basic Income (Proposal 5) Pre-Event") +
+  geom_vline(aes(xintercept = mean(t1$Proposal_5, na.rm = TRUE)),linetype = 5)
+
+prop_5_hist2 <- ggplot(data=t2, aes(x=Proposal_5, fill = school_type)) +
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 100) +
+#  stat_bin(binwidth=1, geom="text", aes(label=..count..), vjust=-1.5) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(t2$Proposal_5)))) +
+  xlab("Rating") +
+  ylab("Count") +
+  ggtitle("Universal Basic Income (Proposal 5) Post-Event") +
+  geom_vline(aes(xintercept = mean(t2$Proposal_5, na.rm = TRUE)),linetype = 5)
+
+prop_8_hist1 <- ggplot(data=t1, aes(x=Proposal_8, fill = school_type)) +
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 100) +
+#  stat_bin(binwidth=1, geom="text", aes(label=..count..), vjust=-1.5) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(t1$Proposal_8)))) +
+  xlab("Rating") +
+  ylab("Count") +
+  ggtitle("National Popular Vote (Proposal 8) Pre-Event") +
+  geom_vline(aes(xintercept = mean(t1$Proposal_8, na.rm = TRUE)),linetype = 5)
+
+prop_8_hist2 <- ggplot(data=t2, aes(x=Proposal_8, fill = school_type)) +
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 100) +
+#  stat_bin(binwidth=1, geom="text", aes(label=..count..), vjust=-1.5) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(t2$Proposal_8)))) +
+  xlab("Rating") +
+  ylab("Count") +
+  ggtitle("National Popular Vote (Proposal 8) Post-Event") +
+  geom_vline(aes(xintercept = mean(t2$Proposal_8, na.rm = TRUE)),linetype = 5)
+
+#hist(t1$Proposal_3)
+#hist(t2$Proposal_3)
+```
+
+Histograms
+```{r}
+prop_3_hist1
+prop_3_hist2
+prop_4_hist1
+prop_4_hist2
+prop_5_hist1
+prop_5_hist2
+prop_8_hist1
+prop_8_hist2
+```
+
+```{r}
+t1_2 <- t1 %>%
+  rename(ideology_scale_1 = "Political_Ideology_(Scale)") %>%
+  rename(ideology_scale_2 = "Political_Ideology_(Scale)_(After_Deliberation)")
+```
+
+Demographics
+```{r}
+party_hist1 <- ggplot(data=t1_2, aes(x=ideology_scale_1)) +
+  geom_histogram(binwidth = 0.5) +
+  ylim(0, 210) +
+  stat_bin(binwidth=1, geom="text", aes(label=..count..), vjust=-1.5) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(t1_2$ideology_scale_1)))) +
+  xlab("Rating") +
+  ylab("Count") +
+  ggtitle("Political Ideology") +
+  geom_vline(aes(xintercept = mean(t1_2$ideology_scale_1, na.rm = TRUE)),linetype = 5)
+
+party_hist2 <- ggplot(data=t1_2, aes(x=ideology_scale_2)) +
+  geom_histogram(binwidth = 0.5) +
+  ylim(0, 210) +
+  stat_bin(binwidth=1, geom="text", aes(label=..count..), vjust=-1.5) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(t1_2$ideology_scale_2)))) +
+  xlab("Rating") +
+  ylab("Count") +
+  ggtitle("Political Ideology") +
+  geom_vline(aes(xintercept = mean(t1_2$ideology_scale_2, na.rm = TRUE)),linetype = 5)
+```
+
+```{r}
+mean(t1_2$ideology_scale_1, na.rm = TRUE)
+mean(t1_2$ideology_scale_2, na.rm = TRUE)
+```
+
+```{r}
+party_hist1
+party_hist2
+```
+
+```{r}
+prop_3_before <- t1 %>%
+  select(Proposal_3, University_Type) %>%
+  gather(key=University_Type, value=Proposal_3) %>%
+  mutate(school_type =replace(University_Type, University_Type == 1, "Private")) %>%
+  mutate(school_type =replace(school_type, University_Type == 2, "Public")) %>%
+  mutate(school_type =replace(school_type, University_Type == 3, "Community")) %>%
+  filter(!is.na(University_Type))
+
+prop_3_after <- t2 %>%
+  select(Proposal_3, University_Type) %>%
+  gather(key=University_Type, value=Proposal_3) %>%
+  mutate(school_type =replace(University_Type, University_Type == 1, "Private")) %>%
+  mutate(school_type =replace(school_type, University_Type == 2, "Public")) %>%
+  mutate(school_type =replace(school_type, University_Type == 3, "Community")) %>%
+  filter(!is.na(University_Type))
+
+prop_3_hist_before <- ggplot(prop_3_before, aes(x=Proposal_3, fill = school_type)) + 
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 50) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(prop_3_before$University_Type)))) +
+  xlab("Rating") +
+  ylab("Count") +
+  ggtitle("Regional Minimum Wage (Proposal 3) Pre-Event") +
+  geom_vline(aes(xintercept = mean(prop_3_before$Proposal_3, na.rm = TRUE)),linetype = 5)
+
+prop_3_hist_after <- ggplot(prop_3_after, aes(x=Proposal_3, fill = school_type)) + 
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 50) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(prop_3_after$University_Type)))) +
+  xlab("Rating") +
+  ylab("Count") +
+  ggtitle("Regional Minimum Wage (Proposal 3) Post-Event") +
+  geom_vline(aes(xintercept = mean(prop_3_after$Proposal_3, na.rm = TRUE)),linetype = 5)
+
+mean(prop_3_after$Proposal_3, na.rm = TRUE)
+mean(prop_3_before$Proposal_3, na.rm = TRUE)
+prop_3_hist_before
+prop_3_hist_after
+```
+
+```{r}
+prop_3_bef <- t1 %>%
+  select(Identification_Number, Proposal_3)
+
+prop_3_aft <- t2 %>%
+  select(Identification_Number, Proposal_3)
+
+comb_3 <- merge(prop_3_bef, prop_3_aft, by = "Identification_Number") %>%
+  rename(Time_1 = Proposal_3.x, Time_2 = Proposal_3.y)
+
+fix <- comb_3 %>%
+  gather("time", "value", 2:3)
+
+eek <- ggplot(fix, aes(x=value, fill = time)) + 
+  geom_histogram(binwidth = 0.5, position = "dodge") +
+  ylim(0, 210) +
+  labs(caption = paste("Number of observations: ", sum(!is.na(prop_3_before$University_Type)))) +
+  xlab("Rating") +
+  ylab("Count") +
+  ggtitle("Regional Minimum Wage (Proposal 3)") 
+eek
+```
+
